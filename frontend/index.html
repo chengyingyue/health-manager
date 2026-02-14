@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Family Health Manager</title>
+    <!-- Element Plus CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <style>
+        body { font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif; margin: 0; padding: 0; background-color: #f5f7fa; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .upload-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; }
+        .text { font-size: 14px; }
+        .item { margin-bottom: 18px; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="container">
+            <div class="header">
+                <h1>Family Health Manager</h1>
+            </div>
+
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <h2>Upload Medical Report</h2>
+                <el-upload
+                    class="upload-demo"
+                    drag
+                    action="http://localhost:8000/upload"
+                    :on-success="handleUploadSuccess"
+                    :on-error="handleUploadError"
+                    :show-file-list="false"
+                    name="file">
+                    <el-icon class="el-icon--upload"><upload-filled /></el-icon>
+                    <div class="el-upload__text">
+                        Drop file here or <em>click to upload</em>
+                    </div>
+                    <template #tip>
+                        <div class="el-upload__tip">
+                            jpg/png/pdf files
+                        </div>
+                    </template>
+                </el-upload>
+            </div>
+
+            <el-row :gutter="20">
+                <!-- Members List -->
+                <el-col :span="8">
+                    <el-card class="box-card">
+                        <template #header>
+                            <div class="card-header">
+                                <span>Family Members</span>
+                                <el-button class="button" text @click="fetchMembers">Refresh</el-button>
+                            </div>
+                        </template>
+                        <div v-for="member in members" :key="member.id" class="text item" style="padding: 10px; border-bottom: 1px solid #eee;">
+                            <h3>{{ member.name }}</h3>
+                            <p>Relation: {{ member.relation || 'N/A' }}</p>
+                            <p>Created: {{ new Date(member.created_at).toLocaleDateString() }}</p>
+                        </div>
+                        <div v-if="members.length === 0" class="text item">
+                            No members found. Upload a report to create one.
+                        </div>
+                    </el-card>
+                </el-col>
+
+                <!-- Reports List -->
+                <el-col :span="16">
+                    <el-card class="box-card">
+                        <template #header>
+                            <div class="card-header">
+                                <span>Recent Reports</span>
+                                <el-button class="button" text @click="fetchReports">Refresh</el-button>
+                            </div>
+                        </template>
+                        <el-table :data="reports" style="width: 100%" empty-text="No reports uploaded yet">
+                            <el-table-column prop="report_date" label="Date" width="120">
+                                <template #default="scope">
+                                    {{ scope.row.report_date ? new Date(scope.row.report_date).toLocaleDateString() : 'N/A' }}
+                                </template>
+                            </el-table-column>
+                            <el-table-column prop="hospital_name" label="Hospital" width="180"></el-table-column>
+                            <el-table-column prop="report_type" label="Type" width="120"></el-table-column>
+                            <el-table-column label="Summary">
+                                <template #default="scope">
+                                    <el-popover effect="light" trigger="hover" placement="top" width="300">
+                                        <template #default>
+                                            <div>{{ scope.row.summary }}</div>
+                                        </template>
+                                        <template #reference>
+                                            <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;">
+                                                {{ scope.row.summary }}
+                                            </div>
+                                        </template>
+                                    </el-popover>
+                                </template>
+                            </el-table-column>
+                            <el-table-column label="Action" width="100">
+                                <template #default="scope">
+                                    <el-link :href="'http://localhost:8000/' + scope.row.file_path" target="_blank" type="primary">View</el-link>
+                                </template>
+                            </el-table-column>
+                        </el-table>
+                    </el-card>
+                </el-col>
+            </el-row>
+        </div>
+    </div>
+
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Element Plus -->
+    <script src="https://unpkg.com/element-plus"></script>
+    <!-- Icons -->
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <!-- Axios -->
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+    <script>
+        const { createApp, ref, onMounted } = Vue;
+
+        const App = {
+            setup() {
+                const members = ref([]);
+                const reports = ref([]);
+
+                const fetchMembers = async () => {
+                    try {
+                        const response = await axios.get('http://localhost:8000/members');
+                        members.value = response.data;
+                    } catch (error) {
+                        console.error("Error fetching members:", error);
+                        ElementPlus.ElMessage.error('Failed to fetch members.');
+                    }
+                };
+
+                const fetchReports = async () => {
+                    try {
+                        const response = await axios.get('http://localhost:8000/reports');
+                        reports.value = response.data;
+                    } catch (error) {
+                        console.error("Error fetching reports:", error);
+                        ElementPlus.ElMessage.error('Failed to fetch reports.');
+                    }
+                };
+
+                const handleUploadSuccess = (response, file) => {
+                    ElementPlus.ElMessage.success('Upload successful!');
+                    console.log(response);
+                    fetchReports();
+                    fetchMembers(); 
+                };
+
+                const handleUploadError = (err, file, fileList) => {
+                    ElementPlus.ElMessage.error('Upload failed. Check console for details.');
+                    console.error(err);
+                };
+
+                onMounted(() => {
+                    fetchMembers();
+                    fetchReports();
+                });
+
+                return {
+                    members,
+                    reports,
+                    fetchMembers,
+                    fetchReports,
+                    handleUploadSuccess,
+                    handleUploadError
+                };
+            }
+        };
+
+        const app = createApp(App);
+        app.use(ElementPlus);
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component)
+        }
+        app.mount('#app');
+    </script>
+</body>
+</html>
