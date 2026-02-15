@@ -56,10 +56,13 @@
                                 <el-button class="button" text @click="fetchMembers">Refresh</el-button>
                             </div>
                         </template>
-                        <div v-for="member in members" :key="member.id" class="text item" style="padding: 10px; border-bottom: 1px solid #eee;">
-                            <h3>{{ member.name }}</h3>
-                            <p>Relation: {{ member.relation || 'N/A' }}</p>
-                            <p>Created: {{ new Date(member.created_at).toLocaleDateString() }}</p>
+                        <div v-for="member in members" :key="member.id" class="text item" style="padding: 10px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <h3>{{ member.name }}</h3>
+                                <p>Relation: {{ member.relation || 'N/A' }}</p>
+                                <p>Created: {{ new Date(member.created_at).toLocaleDateString() }}</p>
+                            </div>
+                            <el-button type="danger" :icon="Delete" circle size="small" @click="deleteMember(member.id)" title="Delete Member"></el-button>
                         </div>
                         <div v-if="members.length === 0" class="text item">
                             No members found. Upload a report to create one.
@@ -98,9 +101,10 @@
                                     </el-popover>
                                 </template>
                             </el-table-column>
-                            <el-table-column label="Action" width="100">
+                            <el-table-column label="Action" width="150">
                                 <template #default="scope">
-                                    <el-link :href="'http://localhost:8000/' + scope.row.file_path" target="_blank" type="primary">View</el-link>
+                                    <el-link :href="'http://localhost:8000/' + scope.row.file_path" target="_blank" type="primary" style="margin-right: 10px;">View</el-link>
+                                    <el-button type="danger" :icon="Delete" circle size="small" @click="deleteReport(scope.row.id)" title="Delete Report"></el-button>
                                 </template>
                             </el-table-column>
                         </el-table>
@@ -121,6 +125,7 @@
 
     <script>
         const { createApp, ref, onMounted } = Vue;
+        const { Delete } = ElementPlusIconsVue;
 
         const App = {
             setup() {
@@ -146,6 +151,31 @@
                         ElementPlus.ElMessage.error('Failed to fetch reports.');
                     }
                 };
+                
+                const deleteMember = async (id) => {
+                    if (!confirm('Are you sure you want to delete this member? All associated reports will also be deleted.')) return;
+                    try {
+                        await axios.delete(`http://localhost:8000/members/${id}`);
+                        ElementPlus.ElMessage.success('Member deleted successfully');
+                        fetchMembers();
+                        fetchReports(); // Reports might be deleted via cascade
+                    } catch (error) {
+                        console.error("Error deleting member:", error);
+                        ElementPlus.ElMessage.error('Failed to delete member.');
+                    }
+                };
+
+                const deleteReport = async (id) => {
+                    if (!confirm('Are you sure you want to delete this report?')) return;
+                    try {
+                        await axios.delete(`http://localhost:8000/reports/${id}`);
+                        ElementPlus.ElMessage.success('Report deleted successfully');
+                        fetchReports();
+                    } catch (error) {
+                        console.error("Error deleting report:", error);
+                        ElementPlus.ElMessage.error('Failed to delete report.');
+                    }
+                };
 
                 const handleUploadSuccess = (response, file) => {
                     ElementPlus.ElMessage.success('Upload successful!');
@@ -169,8 +199,11 @@
                     reports,
                     fetchMembers,
                     fetchReports,
+                    deleteMember,
+                    deleteReport,
                     handleUploadSuccess,
-                    handleUploadError
+                    handleUploadError,
+                    Delete
                 };
             }
         };

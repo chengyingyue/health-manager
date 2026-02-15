@@ -39,7 +39,7 @@ class FamilyMember(Base):
     birth_date = Column(Date, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
-    reports = relationship("MedicalReport", back_populates="member")
+    reports = relationship("MedicalReport", back_populates="member", cascade="all, delete-orphan")
 
 class MedicalReport(Base):
     """

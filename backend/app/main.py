@@ -21,6 +21,7 @@ from datetime import datetime
 
 from fastapi import FastAPI, Depends, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
@@ -262,12 +263,65 @@ def read_reports(skip: int = 0, limit: int = 100, db: Session = Depends(get_db))
     reports = db.query(models.MedicalReport).order_by(desc(models.MedicalReport.created_at)).offset(skip).limit(limit).all()
     return reports
 
-@app.get("/")
+@app.delete("/members/{member_id}", status_code=204)
+def delete_member(member_id: int, db: Session = Depends(get_db)):
+    """
+    删除家庭成员及其关联的所有医疗报告。
+
+    Args:
+        member_id (int): 家庭成员 ID。
+        db (Session): 数据库会话。
+    """
+    member = db.query(models.FamilyMember).filter(models.FamilyMember.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+    
+    # 由于我们在 models.py 中配置了 cascade="all, delete-orphan"
+    # 删除 member 时，关联的 reports 会自动从数据库中删除。
+    # 但是，我们也需要删除对应的物理文件。
+    for report in member.reports:
+        if report.file_path and os.path.exists(report.file_path):
+            try:
+                os.remove(report.file_path)
+            except Exception as e:
+                logger.error(f"Failed to delete file {report.file_path}: {e}")
+
+    db.delete(member)
+    db.commit()
+    return None
+
+@app.delete("/reports/{report_id}", status_code=204)
+def delete_report(report_id: int, db: Session = Depends(get_db)):
+    """
+    删除单个医疗报告。
+
+    Args:
+        report_id (int): 医疗报告 ID。
+        db (Session): 数据库会话。
+    """
+    report = db.query(models.MedicalReport).filter(models.MedicalReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    # 删除物理文件
+    if report.file_path and os.path.exists(report.file_path):
+        try:
+            os.remove(report.file_path)
+        except Exception as e:
+            logger.error(f"Failed to delete file {report.file_path}: {e}")
+
+    db.delete(report)
+    db.commit()
+    return None
+
+@app.get("/", response_class=HTMLResponse)
 def read_root():
     """
-    API 根路径检查。
-
-    Returns:
-        dict: 包含服务状态信息和文档链接。
+    返回前端主页。
     """
-    return {"message": "Family Health Manager API is running", "docs_url": "/docs"}
+    try:
+        # 假设前端文件在 backend 目录的同级 frontend 目录下
+        with open("../frontend/index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        return "<h1>Frontend file not found</h1>"
